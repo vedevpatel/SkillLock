@@ -54,13 +54,30 @@ export function buildAuthority(findings: readonly AuthorityFinding[]): Authority
     const item: AuthorityItem = {
       value: finding.value,
       confidence: finding.confidence,
-      evidence: [...evidence.values()].sort(compareEvidence).slice(0, MAX_EVIDENCE_PER_ITEM),
+      evidence: oneEntryPerLine([...evidence.values()]).slice(0, MAX_EVIDENCE_PER_ITEM),
     };
     bucketFor(model, finding.kind).push(item);
   }
 
   sortModel(model);
   return model;
+}
+
+/**
+ * One line of a file can match several patterns (`cat ~/.aws/credentials` is both
+ * a command argument and a sensitive path literal). They describe the same fact,
+ * so only the first reason for a line is kept.
+ */
+function oneEntryPerLine(evidence: readonly Evidence[]): Evidence[] {
+  const seen = new Set<string>();
+  const out: Evidence[] = [];
+  for (const entry of [...evidence].sort(compareEvidence)) {
+    const key = `${entry.file}\u0000${entry.line}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(entry);
+  }
+  return out;
 }
 
 function sortModel(model: AuthorityModel): void {

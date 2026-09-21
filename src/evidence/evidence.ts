@@ -77,14 +77,21 @@ export function isNegatedContext(unit: ScanUnit, index: number): boolean {
   const before = line.slice(0, Math.max(0, position.column - 1));
   if (NEGATION.test(before)) return true;
 
-  // A prohibition can introduce a list: "Never do any of the following:".
-  for (let offset = 2; offset <= 6; offset += 1) {
+  // A prohibition can introduce a list:
+  //
+  //   The following are all prohibited:
+  //
+  //   - `cat ~/.aws/credentials`
+  //
+  // so the lookback walks past blank lines and sibling list items.
+  for (let offset = 2; offset <= 8; offset += 1) {
     const previous = unit.docLines[position.line - offset];
     if (previous === undefined) break;
-    if (!previous.trim()) break;
-    const isIntroducer = previous.trimEnd().endsWith(':') || previous.trimStart().startsWith('#');
-    if (isIntroducer && NEGATION.test(previous)) return true;
-    if (!isIntroducer) break;
+    const trimmed = previous.trim();
+    if (!trimmed) continue;
+    if (trimmed.endsWith(':') || trimmed.startsWith('#')) return NEGATION.test(previous);
+    if (/^([-*+]|\d+\.)\s/.test(trimmed)) continue;
+    break;
   }
   return false;
 }

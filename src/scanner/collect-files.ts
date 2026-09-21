@@ -2,7 +2,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 import fastGlob from 'fast-glob';
-import ignoreFactory from 'ignore';
+import ignoreModule, { type Ignore, type Options as IgnoreOptions } from 'ignore';
 
 import { hashText } from '../manifest/hash.js';
 import { compareStrings } from '../manifest/normalize.js';
@@ -49,6 +49,9 @@ export const IGNORE_FILE_NAMES = ['.gitignore', '.skilllockignore'];
 
 /** Files larger than this are not scanned; the byte budget buys determinism, not coverage. */
 export const MAX_FILE_BYTES = 1024 * 1024;
+
+/** `ignore` is CJS with no `types` field, so NodeNext types the default import as the module object. */
+const createIgnore = ignoreModule as unknown as (options?: IgnoreOptions) => Ignore;
 
 export interface CollectResult {
   files: ScannedFile[];
@@ -135,7 +138,7 @@ function isBinary(buffer: Buffer): boolean {
 interface IgnoreLayer {
   /** Directory the patterns are relative to, as a skill-relative prefix ('' for root). */
   prefix: string;
-  matcher: ReturnType<typeof ignoreFactory>;
+  matcher: Ignore;
 }
 
 /**
@@ -146,9 +149,9 @@ function buildIgnoreStack(root: string): IgnoreLayer[] {
   const layers: IgnoreLayer[] = [];
   const walk = (directory: string, prefix: string, depth: number): void => {
     if (depth > 24) return;
-    let entries: ReturnType<typeof readdirSync>;
+    let entries;
     try {
-      entries = readdirSync(directory, { withFileTypes: true });
+      entries = readdirSync(directory, { withFileTypes: true, encoding: 'utf8' });
     } catch {
       return;
     }
@@ -162,7 +165,7 @@ function buildIgnoreStack(root: string): IgnoreLayer[] {
       }
     }
     if (patterns.length > 0) {
-      layers.push({ prefix, matcher: ignoreFactory().add(patterns.join('\n')) });
+      layers.push({ prefix, matcher: createIgnore().add(patterns.join('\n')) });
     }
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;

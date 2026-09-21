@@ -11,7 +11,13 @@ import { isNegatedContext, makeFinding } from '../evidence/evidence.js';
 import { normalizePath, sensitiveScope, unquote } from '../manifest/normalize.js';
 import { DYNAMIC, type AuthorityFinding, type AuthorityKind } from '../manifest/schema.js';
 import type { ScanUnit } from '../scanner/units.js';
-import { asStringLiteral, iterateCalls, resolvePathExpression, splitTopLevel } from './resolve.js';
+import {
+  asStringLiteral,
+  iterateCalls,
+  partValueIndex,
+  resolvePathExpression,
+  splitTopLevelParts,
+} from './resolve.js';
 import type { Extractor, ExtractorOptions } from './types.js';
 
 interface FsCall {
@@ -114,18 +120,29 @@ const RECEIVER_BLOCKLIST = new Set(['self', 'this', 'os', 'fs', 'shutil', 'path'
 
 export const filesystemExtractor: Extractor = {
   name: 'filesystem',
-  supports: (unit) =>
-    unit.language === 'python' || unit.language === 'javascript' || unit.language === 'typescript',
+  supports: () => true,
   extract(unit, options) {
     const findings: AuthorityFinding[] = [];
     const root = options?.root;
+
+    if (!isCodeLanguage(unit)) {
+      // Prose and config: only sensitive paths are recorded, since there is no
+      // call site to say whether the path is read or written.
+      return extractSensitiveLiterals(unit, root);
+    }
 
     for (const call of iterateCalls(unit.text)) {
       const spec = FS_CALLS[call.name];
       if (!spec) continue;
 
-      const args = splitTopLevel(call.args, ',').map((part) => part.trim());
+      const parts = splitTopLevelParts(call.args, ',');
+      const args = parts.map((part) => part.text.trim());
       const negated = isNegatedContext(unit, call.index);
+      // Evidence points at the path argument rather than the start of the call.
+      const indexOfArg = (argIndex: number): number => {
+        const part = parts[argIndex];
+        return part ? call.openIndex + 1 + partValueIndex(part) : call.index;
+      };
 
       if (spec.receiver) {
         const receiver = call.callee.slice(0, call.callee.length - call.name.length - 1);
@@ -163,7 +180,7 @@ export const filesystemExtractor: Extractor = {
             raw: resolved.value,
             dynamic: resolved.dynamic,
             directory: spec.directory === true,
-            index: call.index,
+            index: indexOfArg(argIndex),
             reason: resolved.dynamic ? `dynamic-${call.name}-path` : `${call.name}-path`,
             negated,
             ...(root !== undefined ? { root } : {}),
@@ -251,17 +268,29 @@ export function isPlausiblePath(value: string): boolean {
   return true;
 }
 
+function isCodeLanguage(unit: ScanUnit): boolean {
+  return (
+    unit.language === 'python' || unit.language === 'javascript' || unit.language === 'typescript'
+  );
+}
+
+/** Quoted path literals in code; bare paths in prose and command text. */
+const QUOTED_PATH_LITERAL = /(['"])((?:~|\/|\.\/)[^'"\n]{2,200})\1/g;
+const BARE_PATH_LITERAL = /(?:^|[\s"'`(=:,])((?:~|\.{1,2}\/|\/)[A-Za-z0-9._~/-]{2,120})/g;
+
 /**
- * Sensitive paths written as plain string literals, e.g. `KEY = "~/.ssh/id_rsa"`
- * followed later by `open(KEY)`. The operation is unknown, so this is recorded
- * as a read at medium confidence rather than guessed.
+ * Sensitive paths mentioned without a call site: `KEY = "~/.ssh/id_rsa"` used
+ * later via a variable, or "reads your `~/.aws/credentials`" in SKILL.md. The
+ * operation is unknown, so it is recorded as a read rather than guessed.
  */
 function extractSensitiveLiterals(unit: ScanUnit, root: string | undefined): AuthorityFinding[] {
   const findings: AuthorityFinding[] = [];
-  const literals = /(['"])((?:~|\/|\.\/)[^'"\n]{2,200})\1/g;
-  for (const match of unit.text.matchAll(literals)) {
-    const raw = match[2] ?? '';
-    const index = match.index ?? 0;
+  const isCode = isCodeLanguage(unit);
+  const pattern = isCode ? QUOTED_PATH_LITERAL : BARE_PATH_LITERAL;
+  for (const match of unit.text.matchAll(pattern)) {
+    const captured = isCode ? (match[2] ?? '') : (match[1] ?? '');
+    const raw = captured.replace(/[.,;:!?)\]}'"`]+$/, '');
+    const index = (match.index ?? 0) + match[0].indexOf(captured);
     const value = normalizePath(raw, root !== undefined ? { root } : {});
     if (!value || value === DYNAMIC || !isPlausiblePath(value)) continue;
     if (!sensitiveScope(value)) continue;

@@ -10,23 +10,24 @@ import { normalizeUrl } from '../manifest/normalize.js';
 import { ClaimedSpans, isNegatedContext, makeFinding } from '../evidence/evidence.js';
 import { confidenceFor } from '../evidence/confidence.js';
 import type { Extractor } from './types.js';
-import { iterateCalls, resolveUrlExpression, splitTopLevel } from './resolve.js';
+import { iterateCalls, partValueIndex, resolveUrlExpression, splitTopLevelParts } from './resolve.js';
 import { KNOWN_BINARIES } from './binaries.js';
 
-/** Clients whose first argument is a URL. Used for precise reasons and dynamic detection. */
+/**
+ * Receivers whose methods take a URL as the first argument. Deliberately does
+ * not include `fetch` or `request`: those are method names, and treating them as
+ * receivers turns every local `fetch(a, b)` helper into a phantom network call.
+ */
 const HTTP_CLIENT_ROOTS = new Set([
   'aiohttp',
   'axios',
   'client',
-  'fetch',
-  'got',
   'http',
   'httpclient',
   'httpx',
   'https',
   'ky',
   'needle',
-  'request',
   'requests',
   'session',
   'superagent',
@@ -52,15 +53,14 @@ const HTTP_METHOD_NAMES = new Set([
   'urlopen',
 ]);
 
-/** Calls that are always a network reference regardless of receiver. */
-const ALWAYS_NETWORK_CALLS = new Set([
-  'fetch',
-  'urlopen',
-  'HTTPSConnection',
-  'HTTPConnection',
-  'WebSocket',
-  'connect_url',
-]);
+/** Calls that are a network reference in any language. */
+const ALWAYS_NETWORK_CALLS = new Set(['urlopen', 'HTTPSConnection', 'HTTPConnection']);
+
+/**
+ * `fetch` is the platform API in JS, but in Python it is usually a local helper,
+ * so bare calls only count in JS-like units.
+ */
+const JS_NETWORK_CALLS = new Set(['fetch', 'WebSocket', 'EventSource', 'got']);
 
 /**
  * Hosts that appear in documents as identifiers (XML namespaces, licences) and
@@ -92,6 +92,9 @@ export const networkExtractor: Extractor = {
     const findings = [];
     const claimed = new ClaimedSpans();
 
+    const jsLike =
+      unit.language === 'javascript' || unit.language === 'typescript' || unit.language === 'other';
+
     // 1. Client call sites: precise reasons, and the only place `<dynamic>` is emitted.
     for (const call of iterateCalls(unit.text)) {
       const segments = call.callee.toLowerCase().split('.');
@@ -100,14 +103,18 @@ export const networkExtractor: Extractor = {
       const lowerName = name.toLowerCase();
       const isClient =
         ALWAYS_NETWORK_CALLS.has(name) ||
+        (jsLike && JS_NETWORK_CALLS.has(name)) ||
         (HTTP_CLIENT_ROOTS.has(root) && HTTP_METHOD_NAMES.has(lowerName)) ||
         (HTTP_CLIENT_ROOTS.has(segments[segments.length - 2] ?? '') && HTTP_METHOD_NAMES.has(lowerName));
       if (!isClient) continue;
 
-      const first = splitTopLevel(call.args, ',')[0] ?? '';
-      if (!first.trim()) continue;
+      const firstPart = splitTopLevelParts(call.args, ',')[0];
+      const first = firstPart?.text ?? '';
+      if (!first.trim() || !firstPart) continue;
       const resolved = resolveUrlExpression(first);
-      const negated = isNegatedContext(unit, call.index);
+      // Point the evidence at the argument, not at the line the call starts on.
+      const argIndex = call.openIndex + 1 + partValueIndex(firstPart);
+      const negated = isNegatedContext(unit, argIndex);
 
       if (resolved.dynamic) {
         findings.push(
@@ -117,7 +124,7 @@ export const networkExtractor: Extractor = {
             value: DYNAMIC,
             confidence: confidenceFor(unit, { dynamic: true }),
             reason: 'dynamic-request-url',
-            index: call.index,
+            index: argIndex,
           }),
         );
         claimed.claim(call.index, call.end);
@@ -133,7 +140,7 @@ export const networkExtractor: Extractor = {
           value: host,
           confidence: confidenceFor(unit, { negated }),
           reason: 'literal-request-url',
-          index: call.index,
+          index: argIndex,
         }),
       );
       claimed.claim(call.index, call.end);
