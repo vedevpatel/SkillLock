@@ -34,12 +34,17 @@ export interface CallSite {
 const CALL_HEAD =
   /(?<![\w$@.])([A-Za-z_$][A-Za-z0-9_$]*(?:\s*\.\s*[A-Za-z_$][A-Za-z0-9_$]*)*)\s*\(/g;
 
+/** Keywords that make the following name a definition rather than a call. */
+const DEFINITION_KEYWORDS = /\b(?:def|function|class|interface|type)\s+$/;
+
 /** Every `foo.bar(...)` call in a chunk of source, with balanced argument text. */
 export function* iterateCalls(text: string): Generator<CallSite> {
   for (const match of text.matchAll(CALL_HEAD)) {
     const index = match.index ?? 0;
     const callee = (match[1] ?? '').replace(/\s+/g, '');
     if (!callee) continue;
+    // `def fetch(...)` declares a helper; it is not a call to anything.
+    if (DEFINITION_KEYWORDS.test(text.slice(Math.max(0, index - 12), index))) continue;
     const openIndex = index + match[0].length - 1;
     const balanced = readBalanced(text, openIndex);
     if (!balanced) continue;
@@ -108,9 +113,21 @@ export function readBalanced(text: string, openIndex: number): Balanced | null {
   return null;
 }
 
+export interface Part {
+  text: string;
+  /** Offset of the part's first character within the input. */
+  index: number;
+}
+
 /** Split on `separator` at bracket/quote depth zero. */
 export function splitTopLevel(text: string, separator: string): string[] {
-  const parts: string[] = [];
+  return splitTopLevelParts(text, separator).map((part) => part.text);
+}
+
+/** As `splitTopLevel`, but each part keeps its offset for evidence positions. */
+export function splitTopLevelParts(text: string, separator: string): Part[] {
+  const parts: Part[] = [];
+  let start = 0;
   let depth = 0;
   let quote: string | null = null;
   let current = '';
@@ -137,14 +154,20 @@ export function splitTopLevel(text: string, separator: string): string[] {
     if (char === '(' || char === '[' || char === '{') depth += 1;
     if (char === ')' || char === ']' || char === '}') depth -= 1;
     if (depth === 0 && char === separator) {
-      parts.push(current);
+      parts.push({ text: current, index: start });
       current = '';
+      start = index + 1;
       continue;
     }
     current += char;
   }
-  parts.push(current);
+  parts.push({ text: current, index: start });
   return parts;
+}
+
+/** Offset of the first non-whitespace character of a part, for precise evidence. */
+export function partValueIndex(part: Part): number {
+  return part.index + (part.text.length - part.text.trimStart().length);
 }
 
 const STRING_LITERAL =
