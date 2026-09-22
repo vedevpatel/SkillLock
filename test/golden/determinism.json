@@ -1,0 +1,306 @@
+{
+  "schemaVersion": 1,
+  "skill": {
+    "name": "determinism",
+    "root": "$SKILL"
+  },
+  "content": {
+    "hash": "sha256:12e4fb6cd00e28980785bb7709d8b0354fb6060757124f6568dd40b2f3debd06",
+    "files": {
+      "SKILL.md": "sha256:024862022335b7e24244c206409b671844255f0a641b692751b931574e7ae319",
+      "config/settings.json": "sha256:30e0f98e44053b54c2eabe860b710d2a940ff82b80aa5231d7e3a135d49e86ac",
+      "references/deep/notes.md": "sha256:bd922df31c198243920c09316f3dacabbd1f9956ed439974655050c4a5b2c062",
+      "scripts/a.sh": "sha256:49e0d416d95368fe1582884ac6b29b8e720bc1a133a0f93b5b6830d7f2b99cb4",
+      "scripts/b.py": "sha256:ff79997c1919f6c8529111f0c4377b27bb69a69d39f472eca094100edf7c3360",
+      "scripts/c.js": "sha256:d8f2fb91b4f07566adda01cb44bb43e252e84c5fa11d12efca157d2209b9ad73"
+    }
+  },
+  "authority": {
+    "network": [
+      {
+        "value": "api.example.com",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 19,
+            "reason": "literal-url",
+            "snippet": "curl https://api.example.com/v1/things"
+          },
+          {
+            "file": "SKILL.md",
+            "line": 21,
+            "reason": "literal-url",
+            "snippet": "curl https://API.EXAMPLE.COM/v1/other"
+          },
+          {
+            "file": "config/settings.json",
+            "line": 2,
+            "reason": "literal-url",
+            "snippet": "\"endpoint\": \"https://api.example.com/v1\","
+          }
+        ]
+      }
+    ],
+    "filesystem": {
+      "read": [
+        {
+          "value": "./config/settings.json",
+          "confidence": "high",
+          "evidence": [
+            {
+              "file": "scripts/a.sh",
+              "line": 7,
+              "reason": "cat-arg",
+              "snippet": "cat ./config/settings.json"
+            },
+            {
+              "file": "scripts/b.py",
+              "line": 21,
+              "reason": "open-path",
+              "snippet": "with open(\"./config/settings.json\") as handle:"
+            },
+            {
+              "file": "scripts/c.js",
+              "line": 11,
+              "reason": "readFileSync-path",
+              "snippet": "const settings = readFileSync('./config/settings.json', 'utf8');"
+            }
+          ]
+        }
+      ],
+      "write": [
+        {
+          "value": "./out/**",
+          "confidence": "high",
+          "evidence": [
+            {
+              "file": "scripts/a.sh",
+              "line": 11,
+              "reason": "mkdir-arg",
+              "snippet": "mkdir -p ./out"
+            }
+          ]
+        },
+        {
+          "value": "./out/report.json",
+          "confidence": "high",
+          "evidence": [
+            {
+              "file": "scripts/a.sh",
+              "line": 8,
+              "reason": "shell-redirect",
+              "snippet": "curl -sS \"https://api.example.com/v1/things\" -H \"X-Token: ${EXAMPLE_API_TOKEN}\" > ./out/report.json"
+            },
+            {
+              "file": "scripts/a.sh",
+              "line": 10,
+              "reason": "shell-redirect",
+              "snippet": "jq . ./config/settings.json >> ./out/report.json"
+            },
+            {
+              "file": "scripts/b.py",
+              "line": 18,
+              "reason": "open-path",
+              "snippet": "with open(\"./out/report.json\", \"w\") as handle:"
+            }
+          ]
+        }
+      ]
+    },
+    "environment": [
+      {
+        "value": "EXAMPLE_API_TOKEN",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "scripts/a.sh",
+            "line": 5,
+            "reason": "shell-var",
+            "snippet": ": \"${EXAMPLE_API_TOKEN:?set EXAMPLE_API_TOKEN}\""
+          },
+          {
+            "file": "scripts/a.sh",
+            "line": 8,
+            "reason": "shell-var",
+            "snippet": "curl -sS \"https://api.example.com/v1/things\" -H \"X-Token: ${EXAMPLE_API_TOKEN}\" > ./out/report.json"
+          },
+          {
+            "file": "scripts/b.py",
+            "line": 11,
+            "reason": "os-environ",
+            "snippet": "token = os.environ[\"EXAMPLE_API_TOKEN\"]"
+          }
+        ]
+      }
+    ],
+    "shell": [
+      {
+        "value": "cat",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "scripts/a.sh",
+            "line": 7,
+            "reason": "shell-command",
+            "snippet": "cat ./config/settings.json"
+          }
+        ]
+      },
+      {
+        "value": "curl",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 19,
+            "reason": "shell-command",
+            "snippet": "curl https://api.example.com/v1/things"
+          },
+          {
+            "file": "SKILL.md",
+            "line": 21,
+            "reason": "shell-command",
+            "snippet": "curl https://API.EXAMPLE.COM/v1/other"
+          },
+          {
+            "file": "scripts/a.sh",
+            "line": 8,
+            "reason": "shell-command",
+            "snippet": "curl -sS \"https://api.example.com/v1/things\" -H \"X-Token: ${EXAMPLE_API_TOKEN}\" > ./out/report.json"
+          }
+        ]
+      },
+      {
+        "value": "git",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 17,
+            "reason": "shell-command",
+            "snippet": "git status"
+          },
+          {
+            "file": "SKILL.md",
+            "line": 20,
+            "reason": "shell-command",
+            "snippet": "git log --oneline"
+          },
+          {
+            "file": "references/deep/notes.md",
+            "line": 4,
+            "reason": "markdown-command",
+            "snippet": "https://api.example.com/v1/things and `git status` again so that the same"
+          }
+        ]
+      },
+      {
+        "value": "jq",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 18,
+            "reason": "shell-command",
+            "snippet": "jq . ./config/settings.json"
+          },
+          {
+            "file": "scripts/a.sh",
+            "line": 10,
+            "reason": "shell-command",
+            "snippet": "jq . ./config/settings.json >> ./out/report.json"
+          },
+          {
+            "file": "scripts/b.py",
+            "line": 16,
+            "reason": "exec-argv-command",
+            "snippet": "subprocess.run([\"jq\", \".\", \"./config/settings.json\"], check=True)"
+          }
+        ]
+      },
+      {
+        "value": "mkdir",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "scripts/a.sh",
+            "line": 11,
+            "reason": "shell-command",
+            "snippet": "mkdir -p ./out"
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "value": "Bash(git:*)",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 4,
+            "reason": "allowed-tools-declaration",
+            "snippet": "allowed-tools:"
+          }
+        ]
+      },
+      {
+        "value": "Bash(jq:*)",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 4,
+            "reason": "allowed-tools-declaration",
+            "snippet": "allowed-tools:"
+          }
+        ]
+      },
+      {
+        "value": "Read",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 4,
+            "reason": "allowed-tools-declaration",
+            "snippet": "allowed-tools:"
+          },
+          {
+            "file": "SKILL.md",
+            "line": 27,
+            "reason": "inline-tool-reference",
+            "snippet": "Use the `Read` tool for local files and WebFetch for remote ones."
+          }
+        ]
+      }
+    ],
+    "mcp": [
+      {
+        "value": "filesystem",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "config/settings.json",
+            "line": 8,
+            "reason": "mcp-server-config",
+            "snippet": "\"filesystem\": {"
+          }
+        ]
+      },
+      {
+        "value": "github",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "config/settings.json",
+            "line": 4,
+            "reason": "mcp-server-config",
+            "snippet": "\"github\": {"
+          }
+        ]
+      }
+    ]
+  }
+}

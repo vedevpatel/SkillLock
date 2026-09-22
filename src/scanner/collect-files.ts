@@ -1,7 +1,6 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
-import fastGlob from 'fast-glob';
 import ignoreModule, { type Ignore, type Options as IgnoreOptions } from 'ignore';
 
 import { hashText } from '../manifest/hash.js';
@@ -10,45 +9,53 @@ import type { ScannedFile } from '../manifest/schema.js';
 import { classifyFile } from './classify-file.js';
 
 /** File types that can carry statically visible authority. */
-export const INCLUDE_GLOBS = [
-  '**/*.md',
-  '**/*.py',
-  '**/*.js',
-  '**/*.mjs',
-  '**/*.cjs',
-  '**/*.ts',
-  '**/*.sh',
-  '**/*.bash',
-  '**/*.yaml',
-  '**/*.yml',
-  '**/*.json',
-];
+export const INCLUDE_EXTENSIONS: ReadonlySet<string> = new Set([
+  '.md',
+  '.py',
+  '.js',
+  '.mjs',
+  '.cjs',
+  '.ts',
+  '.sh',
+  '.bash',
+  '.yaml',
+  '.yml',
+  '.json',
+]);
 
-/** Never scanned: build output, caches, vendored code, and lockfiles. */
-export const DEFAULT_IGNORE_GLOBS = [
-  '**/.git/**',
-  '**/node_modules/**',
-  '**/dist/**',
-  '**/build/**',
-  '**/.cache/**',
-  '**/__pycache__/**',
-  '**/.venv/**',
-  '**/venv/**',
-  '**/.tox/**',
-  '**/.mypy_cache/**',
-  '**/.pytest_cache/**',
-  '**/.ruff_cache/**',
-  '**/coverage/**',
-  '**/*.lock',
-  '**/*.min.js',
-  '**/*.map',
-  '**/skilllock.json',
-];
+/** Directories that are never part of a skill's authority surface. */
+export const SKIP_DIRECTORIES: ReadonlySet<string> = new Set([
+  '.git',
+  '.cache',
+  '.mypy_cache',
+  '.pytest_cache',
+  '.ruff_cache',
+  '.tox',
+  '.venv',
+  '__pycache__',
+  'build',
+  'coverage',
+  'dist',
+  'node_modules',
+  'venv',
+]);
+
+export const LOCKFILE_BASENAME = 'skilllock.json';
 
 export const IGNORE_FILE_NAMES = ['.gitignore', '.skilllockignore'];
 
 /** Files larger than this are not scanned; the byte budget buys determinism, not coverage. */
 export const MAX_FILE_BYTES = 1024 * 1024;
+
+/** Generated artefacts that match an included extension but carry no authored authority. */
+function isGeneratedArtifact(name: string): boolean {
+  return (
+    name === LOCKFILE_BASENAME ||
+    name.endsWith('.lock') ||
+    name.endsWith('.min.js') ||
+    name.endsWith('.map')
+  );
+}
 
 /** `ignore` is CJS with no `types` field, so NodeNext types the default import as the module object. */
 const createIgnore = ignoreModule as unknown as (options?: IgnoreOptions) => Ignore;
@@ -66,29 +73,85 @@ export interface CollectOptions {
 
 /**
  * Collect the text files that make up a skill, newline-normalized and hashed.
- * Output order is sorted byte-wise so downstream stages never see host-dependent
- * directory order.
+ *
+ * One recursive walk does everything: it gathers `.gitignore` /
+ * `.skilllockignore` layers, applies them the way git does, and reads matching
+ * files. Output is sorted byte-wise so host directory order cannot leak into the
+ * manifest.
  */
 export function collectFiles(options: CollectOptions): CollectResult {
   const root = options.root;
-  const matches = fastGlob.sync(INCLUDE_GLOBS, {
-    cwd: root,
-    ignore: DEFAULT_IGNORE_GLOBS,
-    onlyFiles: true,
-    followSymbolicLinks: false,
-    dot: true,
-    unique: true,
-    suppressErrors: true,
-  });
-
-  const ignoreStack = buildIgnoreStack(root);
   const files: ScannedFile[] = [];
   const skipped: CollectResult['skipped'] = [];
+  const layers: IgnoreLayer[] = [];
 
-  for (const relative of matches.sort(compareStrings)) {
-    if (isIgnored(ignoreStack, relative)) continue;
+  walk(root, '', 0, layers, files, skipped);
 
-    const absolute = path.join(root, relative);
+  files.sort((a, b) => compareStrings(a.path, b.path));
+  skipped.sort((a, b) => compareStrings(a.path, b.path));
+  return { files, skipped };
+}
+
+interface IgnoreLayer {
+  /** Directory the patterns are relative to, as a skill-relative prefix ('' for root). */
+  prefix: string;
+  matcher: Ignore;
+}
+
+const MAX_DEPTH = 24;
+
+function walk(
+  directory: string,
+  prefix: string,
+  depth: number,
+  layers: IgnoreLayer[],
+  files: ScannedFile[],
+  skipped: CollectResult['skipped'],
+): void {
+  if (depth > MAX_DEPTH) return;
+
+  let entries;
+  try {
+    entries = readdirSync(directory, { withFileTypes: true, encoding: 'utf8' });
+  } catch {
+    return;
+  }
+  entries.sort((a, b) => compareStrings(a.name, b.name));
+
+  // Ignore files in this directory apply to everything below it.
+  const patterns: string[] = [];
+  for (const name of IGNORE_FILE_NAMES) {
+    if (!entries.some((entry) => entry.isFile() && entry.name === name)) continue;
+    try {
+      patterns.push(readFileSync(path.join(directory, name), 'utf8'));
+    } catch {
+      // An unreadable ignore file is treated as absent.
+    }
+  }
+  // A copy, not a push: a sibling directory's ignore file must not affect siblings.
+  const ownLayers =
+    patterns.length > 0
+      ? [...layers, { prefix, matcher: createIgnore().add(patterns.join('\n')) }]
+      : layers;
+
+  for (const entry of entries) {
+    const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+
+    if (entry.isSymbolicLink()) continue;
+
+    if (entry.isDirectory()) {
+      if (SKIP_DIRECTORIES.has(entry.name)) continue;
+      if (isIgnored(ownLayers, `${relative}/`)) continue;
+      walk(path.join(directory, entry.name), relative, depth + 1, ownLayers, files, skipped);
+      continue;
+    }
+
+    if (!entry.isFile()) continue;
+    if (isGeneratedArtifact(entry.name)) continue;
+    if (!INCLUDE_EXTENSIONS.has(extensionOf(entry.name))) continue;
+    if (isIgnored(ownLayers, relative)) continue;
+
+    const absolute = path.join(directory, entry.name);
     let buffer: Buffer;
     try {
       const stats = statSync(absolute);
@@ -115,8 +178,11 @@ export function collectFiles(options: CollectOptions): CollectResult {
       content,
     });
   }
+}
 
-  return { files, skipped };
+function extensionOf(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot === -1 ? '' : name.slice(dot).toLowerCase();
 }
 
 /**
@@ -134,65 +200,6 @@ function isBinary(buffer: Buffer): boolean {
   }
   return false;
 }
-
-interface IgnoreLayer {
-  /** Directory the patterns are relative to, as a skill-relative prefix ('' for root). */
-  prefix: string;
-  matcher: Ignore;
-}
-
-/**
- * Gather `.gitignore` / `.skilllockignore` files at every depth and apply each
- * one relative to its own directory, the way git does.
- */
-function buildIgnoreStack(root: string): IgnoreLayer[] {
-  const layers: IgnoreLayer[] = [];
-  const walk = (directory: string, prefix: string, depth: number): void => {
-    if (depth > 24) return;
-    let entries;
-    try {
-      entries = readdirSync(directory, { withFileTypes: true, encoding: 'utf8' });
-    } catch {
-      return;
-    }
-    const patterns: string[] = [];
-    for (const name of IGNORE_FILE_NAMES) {
-      if (!entries.some((entry) => entry.isFile() && entry.name === name)) continue;
-      try {
-        patterns.push(readFileSync(path.join(directory, name), 'utf8'));
-      } catch {
-        // An unreadable ignore file is treated as absent.
-      }
-    }
-    if (patterns.length > 0) {
-      layers.push({ prefix, matcher: createIgnore().add(patterns.join('\n')) });
-    }
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      if (entry.isSymbolicLink()) continue;
-      if (SKIP_DIRS.has(entry.name)) continue;
-      walk(path.join(directory, entry.name), prefix ? `${prefix}/${entry.name}` : entry.name, depth + 1);
-    }
-  };
-  walk(root, '', 0);
-  return layers;
-}
-
-const SKIP_DIRS = new Set([
-  '.git',
-  'node_modules',
-  'dist',
-  'build',
-  '.cache',
-  '__pycache__',
-  '.venv',
-  'venv',
-  '.tox',
-  '.mypy_cache',
-  '.pytest_cache',
-  '.ruff_cache',
-  'coverage',
-]);
 
 function isIgnored(layers: readonly IgnoreLayer[], relativePath: string): boolean {
   for (const layer of layers) {

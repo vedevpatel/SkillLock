@@ -65,8 +65,8 @@ export function normalizeUrl(raw: string): string | null {
   if (!value) return null;
   if (value === DYNAMIC) return DYNAMIC;
 
-  // Trim trailing punctuation picked up from prose, e.g. "see https://x.com."
-  value = value.replace(/[),.;:!?'"`\]}>]+$/, '');
+  // Trim punctuation picked up from prose, e.g. "see (https://x.com)."
+  value = value.replace(/^[([{<'"`]+/, '').replace(/[),.;:!?'"`\]}>]+$/, '');
   if (!value) return null;
 
   const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(value);
@@ -300,7 +300,17 @@ export const UBIQUITOUS_ENV_VARS = new Set([
   'BASH_SOURCE',
   'BASH_VERSION',
   'CDPATH',
+  'COLORTERM',
   'COLUMNS',
+  'DISPLAY',
+  'EDITOR',
+  'INFOPATH',
+  'LANGUAGE',
+  'MANPATH',
+  'PAGER',
+  'PATH',
+  'TERM_PROGRAM',
+  'VISUAL',
   'EUID',
   'FUNCNAME',
   'HOME',
@@ -423,6 +433,24 @@ const SHELL_NON_BINARIES = new Set([
   'while',
 ]);
 
+/** Wrapper flags that consume the next token, e.g. `sudo -u deploy cmd`. */
+const WRAPPER_VALUE_FLAGS = new Set([
+  '-u',
+  '-g',
+  '-U',
+  '-C',
+  '-p',
+  '-I',
+  '--user',
+  '--group',
+  '--chdir',
+  '--prompt',
+  '--max-args',
+  '--replace',
+  '--signal',
+  '--kill-after',
+]);
+
 /** Wrapper commands whose interesting binary is the one they wrap. */
 const COMMAND_WRAPPERS = new Set([
   'command',
@@ -466,8 +494,12 @@ export function normalizeCommand(raw: string): string | null {
     const bare = basenameOf(unquote(token));
     if (COMMAND_WRAPPERS.has(bare)) {
       tokens = tokens.slice(1);
-      // Skip the wrapper's own flags.
-      while (tokens.length > 0 && tokens[0]!.startsWith('-')) tokens = tokens.slice(1);
+      // Skip the wrapper's own flags, including those that take a value.
+      while (tokens.length > 0 && tokens[0]!.startsWith('-')) {
+        const flag = tokens[0]!;
+        tokens = tokens.slice(1);
+        if (WRAPPER_VALUE_FLAGS.has(flag) && tokens.length > 1) tokens = tokens.slice(1);
+      }
       // `timeout 5 cmd`: the duration operand is not the binary.
       if (bare === 'timeout' && tokens.length > 1 && /^\d+(\.\d+)?[smhd]?$/i.test(tokens[0]!)) {
         tokens = tokens.slice(1);

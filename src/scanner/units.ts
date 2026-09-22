@@ -97,7 +97,7 @@ function buildMarkdownUnits(file: ScannedFile, docLines: readonly string[]): Sca
     isSkillFile: skillFile,
   };
 
-  const { frontmatter } = parseSkillMarkdown(file.content);
+  const { frontmatter, bodyStartLine } = parseSkillMarkdown(file.content);
   let lineIndex = 0;
 
   if (frontmatter) {
@@ -110,12 +110,7 @@ function buildMarkdownUnits(file: ScannedFile, docLines: readonly string[]): Sca
       startColumn: 1,
       looseShell: false,
     });
-    // Skip past the closing delimiter.
-    lineIndex = frontmatter.startLine - 1 + frontmatter.raw.split('\n').length;
-    while (lineIndex < docLines.length && !/^---\s*$/.test(docLines[lineIndex] ?? '')) {
-      lineIndex += 1;
-    }
-    lineIndex += 1;
+    lineIndex = bodyStartLine - 1;
   }
 
   let fence: { marker: string; language: Language; looseShell: boolean; startLine: number; lines: string[] } | null =
