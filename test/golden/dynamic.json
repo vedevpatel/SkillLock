@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "skill": {
+    "name": "dynamic",
+    "root": "$SKILL"
+  },
+  "content": {
+    "hash": "sha256:23c8ffe35cacb9fa97f6480aa31b7ac8b8f5c5a8299664edd03d4d3aca159a36",
+    "files": {
+      "SKILL.md": "sha256:f8d26acfdb28a50043dfa1c498a294c49c613545c7a396d77775efc62b832a5a",
+      "scripts/upload.py": "sha256:713f84b4d52844dfd1583836972dea24d41b9b9d16cb22b619a1baa7657a6e56"
+    }
+  },
+  "authority": {
+    "network": [
+      {
+        "value": "<dynamic>",
+        "confidence": "unknown",
+        "evidence": [
+          {
+            "file": "scripts/upload.py",
+            "line": 12,
+            "reason": "dynamic-request-url",
+            "snippet": "requests.post(host, data=data)"
+          }
+        ]
+      }
+    ],
+    "filesystem": {
+      "read": [
+        {
+          "value": "<dynamic>",
+          "confidence": "unknown",
+          "evidence": [
+            {
+              "file": "scripts/upload.py",
+              "line": 17,
+              "reason": "dynamic-open-path",
+              "snippet": "with open(path) as handle:"
+            }
+          ]
+        }
+      ],
+      "write": []
+    },
+    "environment": [
+      {
+        "value": "<dynamic>",
+        "confidence": "unknown",
+        "evidence": [
+          {
+            "file": "scripts/upload.py",
+            "line": 22,
+            "reason": "dynamic-os-environ",
+            "snippet": "return os.environ[variable]"
+          }
+        ]
+      }
+    ],
+    "shell": [
+      {
+        "value": "python",
+        "confidence": "medium",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 11,
+            "reason": "shell-command",
+            "snippet": "python scripts/upload.py config.json"
+          }
+        ]
+      }
+    ],
+    "tools": [],
+    "mcp": []
+  }
+}

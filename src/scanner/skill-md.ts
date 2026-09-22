@@ -1,4 +1,4 @@
-import matter from 'gray-matter';
+import { parse as parseYaml } from 'yaml';
 
 import { normalizeTool } from '../manifest/normalize.js';
 
@@ -17,35 +17,36 @@ export interface ParsedSkillMarkdown {
 }
 
 /**
+ * `---\n<yaml>\n---` at the very start of the file. Split by hand rather than
+ * with a frontmatter library so that SkillLock carries one YAML parser instead
+ * of two.
+ */
+const FRONTMATTER = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/;
+
+/**
  * Split SKILL.md into frontmatter and body. Agent Skills are centered on this
  * file, and its frontmatter is the one place authority is *declared* rather than
  * inferred.
  */
 export function parseSkillMarkdown(content: string): ParsedSkillMarkdown {
-  if (!/^---\r?\n/.test(content)) {
+  const match = FRONTMATTER.exec(content);
+  const raw = match?.[1];
+  if (!match || raw === undefined || !raw.trim()) {
     return { frontmatter: null, bodyStartLine: 1 };
   }
 
-  let parsed: matter.GrayMatterFile<string>;
+  let data: Record<string, unknown> = {};
   try {
-    parsed = matter(content);
+    const parsed: unknown = parseYaml(raw);
+    if (isRecord(parsed)) data = parsed;
   } catch {
-    // Malformed frontmatter is treated as body text rather than a hard failure.
-    return { frontmatter: null, bodyStartLine: 1 };
+    // Malformed frontmatter still delimits the body; its keys are simply unknown.
   }
 
-  const raw = typeof parsed.matter === 'string' ? parsed.matter.replace(/^\n/, '') : '';
-  if (!raw.trim()) return { frontmatter: null, bodyStartLine: 1 };
-
-  const rawLines = raw.split('\n').length;
   return {
-    frontmatter: {
-      raw,
-      startLine: 2,
-      data: isRecord(parsed.data) ? parsed.data : {},
-    },
-    // opening fence + yaml + closing fence
-    bodyStartLine: 1 + rawLines + 1 + 1,
+    frontmatter: { raw, startLine: 2, data },
+    // opening fence + yaml lines + closing fence, then the first body line
+    bodyStartLine: 2 + raw.split('\n').length + 1,
   };
 }
 

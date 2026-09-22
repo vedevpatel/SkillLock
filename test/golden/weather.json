@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "skill": {
+    "name": "weather",
+    "root": "$SKILL"
+  },
+  "content": {
+    "hash": "sha256:1bf587b8ee82b41f9edf4f4a26639b923fb7124b1098400a42f75fc2fa312105",
+    "files": {
+      "README.md": "sha256:c4b74436d5dba6c177d5c6eb8f394e16102048d18abd5a54152fbc1d55331f81",
+      "SKILL.md": "sha256:603f819d51fcede8d83b9df08793e4ffaed9a07e13a7f29e83788c61d666fd79",
+      "references/api-notes.md": "sha256:366c8bab401348d8360fe1b7e9ed836b8006cefa87b70d8b1172459a9feb0264",
+      "scripts/fetch.py": "sha256:35ccf13618876eccf578cc4279015d1f24fbdd1127135e4c089e9c43242eaf15"
+    }
+  },
+  "authority": {
+    "network": [
+      {
+        "value": "api.weather.gov",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "references/api-notes.md",
+            "line": 3,
+            "reason": "literal-url",
+            "snippet": "The endpoint reference lives at https://api.weather.gov/openapi.json."
+          },
+          {
+            "file": "scripts/fetch.py",
+            "line": 18,
+            "reason": "literal-request-url",
+            "snippet": "f\"https://api.weather.gov/points/{latitude},{longitude}/forecast\","
+          }
+        ]
+      }
+    ],
+    "filesystem": {
+      "read": [],
+      "write": [
+        {
+          "value": "./cache/**",
+          "confidence": "high",
+          "evidence": [
+            {
+              "file": "scripts/fetch.py",
+              "line": 30,
+              "reason": "makedirs-path",
+              "snippet": "os.makedirs(\"./cache\", exist_ok=True)"
+            }
+          ]
+        },
+        {
+          "value": "./cache/latest.json",
+          "confidence": "high",
+          "evidence": [
+            {
+              "file": "scripts/fetch.py",
+              "line": 31,
+              "reason": "open-path",
+              "snippet": "with open(\"./cache/latest.json\", \"w\") as handle:"
+            }
+          ]
+        }
+      ]
+    },
+    "environment": [
+      {
+        "value": "WEATHER_API_KEY",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "scripts/fetch.py",
+            "line": 13,
+            "reason": "os-environ",
+            "snippet": "api_key = os.getenv(\"WEATHER_API_KEY\")"
+          }
+        ]
+      }
+    ],
+    "shell": [
+      {
+        "value": "python",
+        "confidence": "medium",
+        "evidence": [
+          {
+            "file": "README.md",
+            "line": 6,
+            "reason": "shell-command",
+            "snippet": "python scripts/fetch.py 47.62 -122.35"
+          },
+          {
+            "file": "SKILL.md",
+            "line": 16,
+            "reason": "shell-command",
+            "snippet": "python scripts/fetch.py 47.62 -122.35"
+          }
+        ]
+      }
+    ],
+    "tools": [
+      {
+        "value": "Bash(python:*)",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 4,
+            "reason": "allowed-tools-declaration",
+            "snippet": "allowed-tools: WebFetch Read Bash(python:*)"
+          }
+        ]
+      },
+      {
+        "value": "Read",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 4,
+            "reason": "allowed-tools-declaration",
+            "snippet": "allowed-tools: WebFetch Read Bash(python:*)"
+          }
+        ]
+      },
+      {
+        "value": "WebFetch",
+        "confidence": "high",
+        "evidence": [
+          {
+            "file": "SKILL.md",
+            "line": 4,
+            "reason": "allowed-tools-declaration",
+            "snippet": "allowed-tools: WebFetch Read Bash(python:*)"
+          }
+        ]
+      }
+    ],
+    "mcp": []
+  }
+}
