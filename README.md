@@ -312,7 +312,7 @@ Skill directory
 ```bash
 npm install
 npm run build
-npx vitest run          # 131 tests
+npx vitest run
 npm run golden          # regenerate the golden manifests after a deliberate change
 ```
 

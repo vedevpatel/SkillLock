@@ -28,15 +28,46 @@ export const KNOWN_BINARIES: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * True when a line plausibly starts with a command invocation. Applied only to
- * loose contexts (unlabelled fences, inline code) where a false positive would
- * be embarrassing and a false negative is acceptable.
+ * Words that mark a line as English prose rather than a command line. Without
+ * this, any documentation sentence beginning with a word that happens to be a
+ * binary ("Say how many runs the panel took", "file … so it is the one git
+ * call") is read as an invocation.
+ */
+const PROSE_WORDS = new Set([
+  'a', 'an', 'and', 'are', 'as', 'be', 'been', 'but', 'by', 'can', 'do', 'does',
+  'each', 'either', 'for', 'from', 'has', 'have', 'how', 'if', 'in', 'into',
+  'is', 'it', 'its', 'not', 'of', 'on', 'or', 'our', 'should', 'so', 'than',
+  'that', 'the', 'their', 'them', 'then', 'these', 'they', 'this', 'those',
+  'to', 'was', 'we', 'were', 'what', 'when', 'which', 'why', 'will', 'with',
+  'would', 'you', 'your',
+]);
+
+/** A command line in documentation is short; a sentence is not. */
+const MAX_LOOSE_TOKENS = 8;
+
+/**
+ * True when a line plausibly *is* a command invocation. Applied only to loose
+ * contexts (unlabelled fences, inline code) where a false positive would be
+ * embarrassing and a false negative is acceptable.
+ *
+ * The binary must match by exact case: `git status` is a command, `GIT -C ...`
+ * and `HEAD` are documentation conventions for something else.
  */
 export function looksLikeCommandLine(line: string): boolean {
   const trimmed = line.trim().replace(/^\$\s+/, '');
   if (!trimmed) return false;
-  const first = /^([A-Za-z0-9._/-]+)/.exec(trimmed)?.[1] ?? '';
+  if (/[.:?!,;]$/.test(trimmed) && !/[./][A-Za-z0-9_-]+$/.test(trimmed)) return false;
+
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  // A bare binary name in backticks is usually a noun: a `patch` record, an `id`
+  // column, a `bash` script. With no arguments it also says nothing about what
+  // the command would touch.
+  if (tokens.length < 2 || tokens.length > MAX_LOOSE_TOKENS) return false;
+
+  const first = /^([A-Za-z0-9._/-]+)/.exec(tokens[0] ?? '')?.[1] ?? '';
   if (!first) return false;
-  const base = (first.split('/').pop() ?? first).toLowerCase();
-  return KNOWN_BINARIES.has(base);
+  const base = first.split('/').pop() ?? first;
+  if (!KNOWN_BINARIES.has(base)) return false;
+
+  return !tokens.some((token) => PROSE_WORDS.has(token.toLowerCase()));
 }
