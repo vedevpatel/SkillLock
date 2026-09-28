@@ -49,6 +49,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "golden": "npm run build && UPDATE_GOLDEN=1 vitest run",
     "demo": "npm run build && node demo/record.mjs",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run clean && npm run build"
   },
   "dependencies": {
