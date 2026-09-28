@@ -6,3 +6,6 @@ coverage/
 
 # npm pack output
 *.tgz
+
+# Local tool state written when $HOME resolved to "?"; not part of the project.
+/?/
