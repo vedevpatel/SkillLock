@@ -170,6 +170,55 @@ export function partValueIndex(part: Part): number {
   return part.index + (part.text.length - part.text.trimStart().length);
 }
 
+export interface ParsedArgs {
+  positional: Part[];
+  /** Keyword arguments, keyed by lowercased name. */
+  keyword: Map<string, Part>;
+}
+
+const KEYWORD_ARG = /^\s*([A-Za-z_$][A-Za-z0-9_$]*)\s*=(?!=)/;
+
+/**
+ * Split a call's arguments into positional and keyword parts, so that
+ * `open(file="x", mode="w")` is understood as well as `open("x", "w")`.
+ */
+export function parseCallArgs(args: string): ParsedArgs {
+  const positional: Part[] = [];
+  const keyword = new Map<string, Part>();
+  for (const part of splitTopLevelParts(args, ',')) {
+    if (!part.text.trim()) continue;
+    const match = KEYWORD_ARG.exec(part.text);
+    const name = match?.[1];
+    if (match && name) {
+      const offset = match[0].length;
+      if (!keyword.has(name.toLowerCase())) {
+        keyword.set(name.toLowerCase(), {
+          text: part.text.slice(offset),
+          index: part.index + offset,
+        });
+      }
+      continue;
+    }
+    positional.push(part);
+  }
+  return { positional, keyword };
+}
+
+/** The positional argument at `index`, or the first of `keywords` that is present. */
+export function argAt(
+  args: ParsedArgs,
+  index: number,
+  keywords: readonly string[] = [],
+): Part | undefined {
+  const positional = args.positional[index];
+  if (positional) return positional;
+  for (const name of keywords) {
+    const found = args.keyword.get(name);
+    if (found) return found;
+  }
+  return undefined;
+}
+
 const STRING_LITERAL =
   /^(?:(?:[rRbBuU]|[rR][bB]|[bB][rR]|[fF]|[fF][rR]|[rR][fF])?)(?:"""([\s\S]*)"""|'''([\s\S]*)'''|"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)'|`((?:[^`\\]|\\.)*)`)$/;
 

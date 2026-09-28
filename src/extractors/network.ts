@@ -10,7 +10,10 @@ import { normalizeUrl } from '../manifest/normalize.js';
 import { ClaimedSpans, isNegatedContext, makeFinding } from '../evidence/evidence.js';
 import { confidenceFor } from '../evidence/confidence.js';
 import type { Extractor } from './types.js';
-import { iterateCalls, partValueIndex, resolveUrlExpression, splitTopLevelParts } from './resolve.js';
+import { argAt, iterateCalls, parseCallArgs, partValueIndex, resolveUrlExpression } from './resolve.js';
+
+/** Keyword argument names that carry the URL, e.g. `requests.get(url="...")`. */
+const URL_KEYWORDS = ['url', 'uri', 'endpoint', 'address', 'href', 'link'];
 import { KNOWN_BINARIES } from './binaries.js';
 
 /**
@@ -108,7 +111,7 @@ export const networkExtractor: Extractor = {
         (HTTP_CLIENT_ROOTS.has(segments[segments.length - 2] ?? '') && HTTP_METHOD_NAMES.has(lowerName));
       if (!isClient) continue;
 
-      const firstPart = splitTopLevelParts(call.args, ',')[0];
+      const firstPart = argAt(parseCallArgs(call.args), 0, URL_KEYWORDS);
       const first = firstPart?.text ?? '';
       if (!first.trim() || !firstPart) continue;
       const resolved = resolveUrlExpression(first);

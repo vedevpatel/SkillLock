@@ -12,11 +12,13 @@ import { normalizePath, sensitiveScope, unquote } from '../manifest/normalize.js
 import { DYNAMIC, type AuthorityFinding, type AuthorityKind } from '../manifest/schema.js';
 import type { ScanUnit } from '../scanner/units.js';
 import {
+  argAt,
   asStringLiteral,
   iterateCalls,
+  parseCallArgs,
   partValueIndex,
   resolvePathExpression,
-  splitTopLevelParts,
+  type ParsedArgs,
 } from './resolve.js';
 import type { Extractor, ExtractorOptions } from './types.js';
 
@@ -135,14 +137,8 @@ export const filesystemExtractor: Extractor = {
       const spec = FS_CALLS[call.name];
       if (!spec) continue;
 
-      const parts = splitTopLevelParts(call.args, ',');
-      const args = parts.map((part) => part.text.trim());
+      const args = parseCallArgs(call.args);
       const negated = isNegatedContext(unit, call.index);
-      // Evidence points at the path argument rather than the start of the call.
-      const indexOfArg = (argIndex: number): number => {
-        const part = parts[argIndex];
-        return part ? call.openIndex + 1 + partValueIndex(part) : call.index;
-      };
 
       if (spec.receiver) {
         const receiver = call.callee.slice(0, call.callee.length - call.name.length - 1);
@@ -167,20 +163,19 @@ export const filesystemExtractor: Extractor = {
         continue;
       }
 
-      const modes = resolveModes(spec, args);
-      for (const [kind, indexes] of modes) {
+      for (const [kind, indexes] of resolveModes(spec, args)) {
         for (const argIndex of indexes) {
-          const raw = args[argIndex];
-          if (raw === undefined || raw === '') continue;
-          if (/^[A-Za-z_$][A-Za-z0-9_$]*\s*=/.test(raw)) continue;
-          const resolved = resolvePathExpression(raw);
+          const part = argAt(args, argIndex, PATH_KEYWORDS[argIndex] ?? []);
+          if (!part || !part.text.trim()) continue;
+          const resolved = resolvePathExpression(part.text);
           pushPath(findings, {
             unit,
             kind,
             raw: resolved.value,
             dynamic: resolved.dynamic,
             directory: spec.directory === true,
-            index: indexOfArg(argIndex),
+            // Evidence points at the path argument, not the start of the call.
+            index: call.openIndex + 1 + partValueIndex(part),
             reason: resolved.dynamic ? `dynamic-${call.name}-path` : `${call.name}-path`,
             negated,
             ...(root !== undefined ? { root } : {}),
@@ -194,12 +189,21 @@ export const filesystemExtractor: Extractor = {
   },
 };
 
+/** Keyword argument names that carry a path, by positional index. */
+const PATH_KEYWORDS: readonly (readonly string[])[] = [
+  ['file', 'path', 'filename', 'filepath', 'fname', 'src', 'source', 'dir', 'directory', 'name'],
+  ['dst', 'dest', 'destination', 'target', 'newpath', 'link'],
+];
+
+const MODE_KEYWORDS = ['mode', 'flag', 'flags'];
+
 /** Apply the open-mode argument, if any, to decide read vs write. */
-function resolveModes(spec: FsCall, args: readonly string[]): Array<[AuthorityKind, readonly number[]]> {
+function resolveModes(spec: FsCall, args: ParsedArgs): Array<[AuthorityKind, readonly number[]]> {
   const out: Array<[AuthorityKind, readonly number[]]> = [];
   if (spec.modeArg !== undefined) {
     const pathIndexes = spec.read ?? [0];
-    const mode = asStringLiteral(args[spec.modeArg] ?? '')?.value ?? '';
+    const modePart = argAt(args, spec.modeArg, MODE_KEYWORDS);
+    const mode = modePart ? (asStringLiteral(modePart.text)?.value ?? '') : '';
     const writes = /[wax+]/.test(mode);
     // An absent or unresolvable mode defaults to read, the common case.
     const reads = mode === '' || mode.includes('r') || mode.includes('+');

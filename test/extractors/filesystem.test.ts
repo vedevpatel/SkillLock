@@ -48,6 +48,19 @@ describe('filesystem extractor', () => {
     ]);
   });
 
+  it('understands keyword arguments', () => {
+    const findings = extract(
+      'scripts/a.py',
+      [
+        'open(file="./kw.json", mode="w")',
+        'open(file="./read.json")',
+        'shutil.copy(src="./a.txt", dst="./b.txt")',
+      ].join('\n'),
+    );
+    expect(valuesOf(findings, 'filesystem.write')).toEqual(['./b.txt', './kw.json']);
+    expect(valuesOf(findings, 'filesystem.read')).toEqual(['./a.txt', './read.json']);
+  });
+
   it('records a directory-creating call as a scope', () => {
     const findings = extract('scripts/a.py', 'os.makedirs("./cache", exist_ok=True)');
     expect(valuesOf(findings, 'filesystem.write')).toEqual(['./cache/**']);

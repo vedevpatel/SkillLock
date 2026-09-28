@@ -13,7 +13,10 @@ import { DYNAMIC, type AuthorityFinding, type AuthorityKind } from '../manifest/
 import type { ScanUnit } from '../scanner/units.js';
 import { looksLikeCommandLine } from './binaries.js';
 import { normalizeCommandPath, pushPath } from './filesystem.js';
-import { asStringLiteral, iterateCalls, splitTopLevel } from './resolve.js';
+import { argAt, asStringLiteral, iterateCalls, parseCallArgs, splitTopLevel } from './resolve.js';
+
+/** Keyword argument names that carry the command, e.g. `subprocess.run(args=[...])`. */
+const EXEC_KEYWORDS = ['args', 'argv', 'command', 'cmd', 'file', 'executable'];
 import {
   commandText,
   isStreamTarget,
@@ -321,8 +324,7 @@ function analyzeExecCalls(
     const receiver = call.callee.slice(0, Math.max(0, call.callee.length - call.name.length - 1));
     if (!EXEC_RECEIVERS.has(receiver)) continue;
 
-    const args = splitTopLevel(call.args, ',').map((part) => part.trim());
-    const first = args[0] ?? '';
+    const first = argAt(parseCallArgs(call.args), 0, EXEC_KEYWORDS)?.text.trim() ?? '';
     if (!first) continue;
 
     // argv form: ["git", "status"] or ("npm", ["test"])
