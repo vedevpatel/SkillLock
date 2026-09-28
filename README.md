@@ -62,7 +62,12 @@ npx github:vedevpatel/SkillLock verify ./my-skill
 ```
 
 The first run builds from source, which takes a few seconds; after that npx uses
-its cache. To get a `skilllock` command on your PATH instead:
+its cache. To pin a version, append a tag or a short commit, e.g.
+`github:vedevpatel/SkillLock#ab5da6af63c4`. Avoid the full 40-character SHA:
+npm 10 (the default on Node 18 and 20) fails to install full-SHA git specs for
+packages that build on install.
+
+To get a `skilllock` command on your PATH instead:
 
 ```bash
 npm install -g github:vedevpatel/SkillLock

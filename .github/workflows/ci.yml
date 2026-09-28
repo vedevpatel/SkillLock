@@ -82,17 +82,24 @@ jobs:
   # directory, an empty npx cache, nothing but npx and this commit on GitHub.
   npx-from-github:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # 18 and 20 ship npm 10, 22 ships a newer npm; both install paths differ.
+        node: ['18', '20', '22']
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ matrix.node }}
       - name: init, apply the update, verify via npx
         env:
           npm_config_cache: ${{ runner.temp }}/npx-cache
           npm_config_update_notifier: 'false'
-          SKILLLOCK: github:${{ github.repository }}#${{ github.sha }}
         run: |
+          # Pinned by a 12-character SHA, not the full 40: npm 10 cannot install a
+          # full-SHA git spec for a package with a prepare script ("GitFetcher
+          # requires an Arborist constructor to pack a tarball").
+          SKILLLOCK="github:${GITHUB_REPOSITORY}#${GITHUB_SHA::12}"
           work="$RUNNER_TEMP/fresh"
           mkdir -p "$work"
           cp -R test/fixtures/weather "$work/my-skill"
