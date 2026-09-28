@@ -42,10 +42,3 @@ export function isExecutableLanguage(language: Language): boolean {
 export function isSkillFile(path: string): boolean {
   return path === 'SKILL.md';
 }
-
-/** Documentation that ships alongside a skill: lower confidence by default. */
-export function isReferenceDoc(path: string): boolean {
-  if (isSkillFile(path)) return false;
-  if (classifyFile(path) !== 'markdown') return false;
-  return true;
-}

@@ -239,8 +239,10 @@ Skipped: `.git/`, `node_modules/`, `dist/`, `build/`, `.cache/`, `__pycache__/`,
 virtualenvs, test caches, `*.lock`, `*.min.js`, source maps, binary files, files
 over 1 MiB, and `skilllock.json` itself.
 
-`.gitignore` and `.skilllockignore` are both respected, at every directory depth,
-with the same semantics git uses.
+`.gitignore` and `.skilllockignore` are both respected, with the same semantics
+git uses, at every depth *inside* the skill directory. Ignore files above the
+skill root are deliberately not consulted: the manifest must not depend on files
+outside the skill it describes.
 
 Environment variables that every process already has (`HOME`, `PATH`, `PWD`,
 `TERM`, …) are not recorded: they are noise rather than authority.

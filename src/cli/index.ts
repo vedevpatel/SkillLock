@@ -5,6 +5,8 @@
  * skilllock inspect explain the current authority and its evidence
  */
 
+import { createRequire } from 'node:module';
+
 import { Command } from 'commander';
 
 import { EXIT_ERROR, printError } from './common.js';
@@ -12,7 +14,9 @@ import { runInit } from './init.js';
 import { runInspect } from './inspect.js';
 import { runVerify } from './verify.js';
 
-const VERSION = '0.1.0';
+/** Single source of truth, so `--version` cannot drift from the package. */
+const VERSION: string =
+  (createRequire(import.meta.url)('../../package.json') as { version?: string }).version ?? '0.0.0';
 
 const DESCRIPTION = `git diff for what your Agent Skills touch.
 

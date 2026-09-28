@@ -74,10 +74,6 @@ export function serializeManifest(manifest: Manifest): string {
   return `${JSON.stringify(canonicalizeManifest(manifest), null, 2)}\n`;
 }
 
-export interface ParseResult {
-  manifest: Manifest;
-}
-
 /** Parse and shape-check a lockfile. Throws a human-readable error on mismatch. */
 export function parseManifest(text: string, source: string): Manifest {
   let raw: unknown;

@@ -3,3 +3,6 @@ dist/
 *.tsbuildinfo
 .DS_Store
 coverage/
+
+# npm pack output
+*.tgz

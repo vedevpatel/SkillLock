@@ -539,10 +539,6 @@ function basenameOf(token: string): string {
   return parts[parts.length - 1] ?? token;
 }
 
-export function isShellNonBinary(token: string): boolean {
-  return SHELL_NON_BINARIES.has(token);
-}
-
 /* -------------------------------------------------------------------------- */
 /* agent tools and MCP                                                        */
 /* -------------------------------------------------------------------------- */
