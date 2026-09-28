@@ -5,7 +5,8 @@
  * Regenerate with: npm run golden
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -81,6 +82,21 @@ describe('determinism', () => {
       scanSkill({ directory: path.join(FIXTURES, 'weather') }).manifest.authority.tools,
     ];
     expect(reversed[0]).toEqual(reversed[1]);
+  });
+
+  it('produces the same manifest from a CRLF checkout', () => {
+    // What a Windows checkout with core.autocrlf looks like: same files, CRLF endings.
+    const source = path.join(FIXTURES, 'weather');
+    const copy = mkdtempSync(path.join(tmpdir(), 'skilllock-crlf-'));
+    cpSync(source, copy, { recursive: true });
+    for (const file of scanSkill({ directory: copy }).files) {
+      const absolute = path.join(copy, file.path);
+      writeFileSync(absolute, readFileSync(absolute, 'utf8').replace(/\n/g, '\r\n'), 'utf8');
+    }
+    const lf = scanSkill({ directory: source }).manifest;
+    const crlf = scanSkill({ directory: copy }).manifest;
+    // weather declares its name in SKILL.md, so the temp directory name does not leak in.
+    expect(serializeManifest(crlf)).toBe(serializeManifest(lf));
   });
 
   it('respects .skilllockignore', () => {

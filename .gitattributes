@@ -1,0 +1,10 @@
+# SkillLock writes skilllock.json with LF line endings on every platform, and the
+# golden manifests are compared byte for byte. Pin LF so a Windows checkout with
+# core.autocrlf does not rewrite them to CRLF.
+* text=auto eol=lf
+
+# Fixture sources are pinned too, so their recorded content hashes are the same
+# on every checkout. (SkillLock normalizes CRLF before hashing regardless; this
+# keeps the fixtures themselves stable.)
+test/fixtures/** text eol=lf
+test/golden/*.json text eol=lf
