@@ -1,5 +1,5 @@
 {
-  "name": "skilllock",
+  "name": "skill-lock",
   "version": "0.1.0",
   "description": "git diff for what your Agent Skills touch. A deterministic static authority-diff engine.",
   "keywords": [

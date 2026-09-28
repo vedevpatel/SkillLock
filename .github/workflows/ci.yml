@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ['18', '20', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx vitest run
+
+  # The manifest must be reproducible on a machine that is not the author's:
+  # a different checkout path, a different OS, a different Node version.
+  determinism:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Manifests match the committed golden files
+        run: npx vitest run test/golden.test.ts
+
+  # SkillLock verifying itself: the drift fixture must fail the build.
+  self-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Benign skill verifies clean
+        run: |
+          node dist/cli/index.js init test/fixtures/weather --lockfile /tmp/weather.json
+          node dist/cli/index.js verify test/fixtures/weather --lockfile /tmp/weather.json
+      - name: An update that gained authority fails with exit code 2
+        run: |
+          set +e
+          node dist/cli/index.js verify test/fixtures/weather-malicious --lockfile /tmp/weather.json
+          status=$?
+          set -e
+          if [ "$status" -ne 2 ]; then
+            echo "expected exit code 2 for authority drift, got $status"
+            exit 1
+          fi
