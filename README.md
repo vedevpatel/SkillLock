@@ -54,24 +54,26 @@ actual telemetry — are different problems. SkillLock only does the first.
 
 ## Install
 
-> Not published to npm yet. Until it is, use the clone-and-build steps under
-> [Try it](#try-it). Once published, this is the whole install story:
+Nothing to install. Run it straight from GitHub:
 
 ```bash
-npx skill-lock verify ./my-skill
+npx github:vedevpatel/SkillLock init ./my-skill
+npx github:vedevpatel/SkillLock verify ./my-skill
 ```
 
-Or install it, which gives you the `skilllock` command:
+The first run builds from source, which takes a few seconds; after that npx uses
+its cache. To get a `skilllock` command on your PATH instead:
 
 ```bash
-npm install -g skill-lock
+npm install -g github:vedevpatel/SkillLock
 skilllock verify ./my-skill
 ```
 
-Requires Node 18+. No network access, no API keys, no LLM.
+Requires Node 18+. Scanning needs no network access, no API keys and no LLM.
 
-> The npm package is `skill-lock` because `skilllock` was already taken; the
-> command, the lockfile format and the project are all still SkillLock.
+> Once published to the npm registry it will be `npx skill-lock ...`. The package
+> is named `skill-lock` because `skilllock` was already taken; the command, the
+> lockfile format and the project are all still SkillLock.
 
 ## Three commands
 
@@ -226,7 +228,7 @@ No custom Action needed. `verify` returning `2` fails the step:
 
 ```yaml
 - name: Verify skill authority
-  run: npx skill-lock verify ./.claude/skills/weather
+  run: npx -y github:vedevpatel/SkillLock verify ./.claude/skills/weather
 ```
 
 `--json` gives you the diff as data for a bot or a summary comment:

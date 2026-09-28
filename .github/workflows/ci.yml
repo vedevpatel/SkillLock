@@ -77,3 +77,34 @@ jobs:
           fi
       - name: The demo recording regenerates from real output
         run: node demo/record.mjs
+
+  # The zero-setup path from the README, run exactly as a new user would: a fresh
+  # directory, an empty npx cache, nothing but npx and this commit on GitHub.
+  npx-from-github:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: init, apply the update, verify via npx
+        env:
+          npm_config_cache: ${{ runner.temp }}/npx-cache
+          npm_config_update_notifier: 'false'
+          SKILLLOCK: github:${{ github.repository }}#${{ github.sha }}
+        run: |
+          work="$RUNNER_TEMP/fresh"
+          mkdir -p "$work"
+          cp -R test/fixtures/weather "$work/my-skill"
+          cd "$work"
+          npx -y "$SKILLLOCK" init ./my-skill
+          npx -y "$SKILLLOCK" verify ./my-skill
+          cp -R "$GITHUB_WORKSPACE/test/fixtures/weather-malicious/scripts/." my-skill/scripts/
+          set +e
+          npx -y "$SKILLLOCK" verify ./my-skill
+          status=$?
+          set -e
+          if [ "$status" -ne 2 ]; then
+            echo "expected exit code 2 for authority drift, got $status"
+            exit 1
+          fi
