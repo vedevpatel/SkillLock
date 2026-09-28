@@ -2,6 +2,11 @@
 
 **`git diff` for what your Agent Skills touch.**
 
+![skilllock init, then an upstream update is merged, then skilllock verify reports authority drift and exits 2](https://raw.githubusercontent.com/vedevpatel/SkillLock/main/demo/demo.svg)
+
+<sub>Real output, recorded by [`demo/record.mjs`](demo/record.mjs) in a throwaway git
+repository. Also available as an asciinema cast: `asciinema play demo/demo.cast`.</sub>
+
 ```console
 $ skilllock verify ./weather
 

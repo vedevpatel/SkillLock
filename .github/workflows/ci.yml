@@ -64,3 +64,16 @@ jobs:
             echo "expected exit code 2 for authority drift, got $status"
             exit 1
           fi
+      # The spec's bar is ~100 ms to 1 s for verify, including Node startup.
+      - name: verify finishes within one second
+        run: |
+          start=$(date +%s%N)
+          node dist/cli/index.js verify test/fixtures/weather-malicious --lockfile /tmp/weather.json > /dev/null || true
+          elapsed_ms=$(( ($(date +%s%N) - start) / 1000000 ))
+          echo "verify took ${elapsed_ms} ms"
+          if [ "$elapsed_ms" -gt 1000 ]; then
+            echo "verify exceeded the 1 s budget"
+            exit 1
+          fi
+      - name: The demo recording regenerates from real output
+        run: node demo/record.mjs

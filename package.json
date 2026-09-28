@@ -11,6 +11,15 @@
     "static-analysis"
   ],
   "license": "MIT",
+  "author": "Ved Patel",
+  "homepage": "https://github.com/vedevpatel/SkillLock#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vedevpatel/SkillLock.git"
+  },
+  "bugs": {
+    "url": "https://github.com/vedevpatel/SkillLock/issues"
+  },
   "type": "module",
   "engines": {
     "node": ">=18"
@@ -28,6 +37,7 @@
   },
   "files": [
     "dist",
+    "!dist/**/*.map",
     "README.md",
     "LICENSE"
   ],
@@ -38,6 +48,7 @@
     "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "golden": "npm run build && UPDATE_GOLDEN=1 vitest run",
+    "demo": "npm run build && node demo/record.mjs",
     "prepublishOnly": "npm run clean && npm run build"
   },
   "dependencies": {
