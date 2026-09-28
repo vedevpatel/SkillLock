@@ -41,6 +41,32 @@ describe('environment extractor', () => {
     expect(valuesOf(findings, 'environment')).toEqual([]);
   });
 
+  it('ignores variables the script assigns itself', () => {
+    const findings = extract(
+      'scripts/a.sh',
+      ['python viewer.py &', 'VIEWER_PID=$!', 'sleep 1', 'kill $VIEWER_PID 2>/dev/null'].join('\n'),
+    );
+    expect(valuesOf(findings, 'environment')).toEqual([]);
+  });
+
+  it('keeps a variable whose default falls back to the environment', () => {
+    const findings = extract(
+      'scripts/a.sh',
+      ['EXAMPLE_API_KEY="${EXAMPLE_API_KEY:-}"', 'curl -H "X-Key: $EXAMPLE_API_KEY" https://x.example'].join(
+        '\n',
+      ),
+    );
+    expect(valuesOf(findings, 'environment')).toEqual(['EXAMPLE_API_KEY']);
+  });
+
+  it('keeps an exported variable, which is written to the child environment', () => {
+    const findings = extract(
+      'scripts/a.sh',
+      ['export PROBE_TOKEN=abc', 'python child.py "$PROBE_TOKEN"'].join('\n'),
+    );
+    expect(valuesOf(findings, 'environment')).toEqual(['PROBE_TOKEN']);
+  });
+
   it('ignores bare dollar references in prose', () => {
     const findings = extract('SKILL.md', 'This costs $USD per request.\n');
     expect(valuesOf(findings, 'environment')).toEqual([]);

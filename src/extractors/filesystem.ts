@@ -117,8 +117,62 @@ const FS_CALLS: Record<string, FsCall> = {
   link: { write: [1] },
 };
 
-/** Callees whose receiver is a path object rather than a module. */
+/** Receivers that are never a path object. */
 const RECEIVER_BLOCKLIST = new Set(['self', 'this', 'os', 'fs', 'shutil', 'path', 'json', 'yaml']);
+
+/**
+ * Names that also exist as ordinary string, list, or unrelated-module methods.
+ * `config.replace("_", " ")` is not `os.replace` and `webbrowser.open(url)` is
+ * not a file open, so these need either a filesystem module as the receiver or a
+ * receiver that resolves to a path, as in `Path("~/x").open()`.
+ */
+const MODULE_ONLY_CALLS = new Set([
+  'access',
+  'copy',
+  'copy2',
+  'copyfile',
+  'copytree',
+  'glob',
+  'iglob',
+  'link',
+  'listdir',
+  'move',
+  'open',
+  'read_csv',
+  'read_json',
+  'remove',
+  'rename',
+  'replace',
+  'scandir',
+  'stat',
+  'to_csv',
+  'to_json',
+  'truncate',
+  'walk',
+]);
+
+/** Receivers that make a `MODULE_ONLY_CALLS` name a real filesystem operation. */
+const PATH_MODULES = new Set([
+  'codecs',
+  'fs',
+  'fs.promises',
+  'fsPromises',
+  'fsp',
+  'glob',
+  'io',
+  'node:fs',
+  'ntpath',
+  'os',
+  'os.path',
+  'pandas',
+  'path',
+  'pathlib',
+  'pd',
+  'posixpath',
+  'promises',
+  'shutil',
+  'tempfile',
+]);
 
 export const filesystemExtractor: Extractor = {
   name: 'filesystem',
@@ -140,8 +194,14 @@ export const filesystemExtractor: Extractor = {
       const args = parseCallArgs(call.args);
       const negated = isNegatedContext(unit, call.index);
 
-      if (spec.receiver) {
-        const receiver = call.callee.slice(0, call.callee.length - call.name.length - 1);
+      const receiver = call.callee.slice(0, Math.max(0, call.callee.length - call.name.length - 1));
+      // An ambiguous name on something that is not a filesystem module is only a
+      // filesystem call if its receiver is itself a path.
+      const receiverIsPath =
+        spec.receiver === true ||
+        (MODULE_ONLY_CALLS.has(call.name) && receiver !== '' && !PATH_MODULES.has(receiver));
+
+      if (receiverIsPath) {
         if (!receiver || RECEIVER_BLOCKLIST.has(receiver)) continue;
         const resolved = resolvePathExpression(receiver);
         // A dynamic receiver is usually an open file handle, not a new path.

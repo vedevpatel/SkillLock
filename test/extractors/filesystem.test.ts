@@ -111,6 +111,43 @@ describe('filesystem extractor', () => {
     ]);
   });
 
+  it('does not mistake string and unrelated-module methods for filesystem calls', () => {
+    const findings = extract(
+      'scripts/a.py',
+      [
+        'label = config_a.replace("_", " ").title()',
+        'webbrowser.open(url)',
+        'template.replace("/*__DATA__*/", payload)',
+        'items.remove("./x")',
+        'for eval_dir in benchmark_dir.glob("eval-*"):',
+        '    pass',
+      ].join('\n'),
+    );
+    expect(valuesOf(findings, 'filesystem.read')).toEqual([]);
+    expect(valuesOf(findings, 'filesystem.write')).toEqual([]);
+  });
+
+  it('still resolves a path object as the receiver', () => {
+    const findings = extract('scripts/a.py', 'Path("~/.ssh/id_rsa").open()');
+    expect(valuesOf(findings, 'filesystem.read')).toEqual(['~/.ssh/id_rsa']);
+  });
+
+  it('treats documentation placeholders as templates, not paths', () => {
+    const findings = extract(
+      'SKILL.md',
+      '# Doc\n\nSnapshot it first: `cp -r <skill-path> <workspace>/skill-snapshot`\n',
+    );
+    expect(valuesOf(findings, 'filesystem.read')).toEqual([]);
+    expect(valuesOf(findings, 'filesystem.write')).toEqual([]);
+    // The command itself is still recorded.
+    expect(valuesOf(findings, 'shell')).toEqual(['cp']);
+  });
+
+  it('records an unresolvable path in a script, where it is real authority', () => {
+    const findings = extract('scripts/a.sh', 'cat "$CONFIG_FILE"\n');
+    expect(valuesOf(findings, 'filesystem.read')).toEqual(['<dynamic>']);
+  });
+
   it('records a sensitive path mentioned in prose without a call site', () => {
     const findings = extract('SKILL.md', 'This skill reads your `~/.aws/credentials` file.\n');
     expect(valuesOf(findings, 'filesystem.read')).toEqual(['~/.aws/credentials']);

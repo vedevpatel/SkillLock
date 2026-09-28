@@ -23,6 +23,15 @@ const REDIRECTIONS = new Set(['>', '>>', '<', '<<', '<<<', '&>', '&>>', '>&', '<
 
 const OPERATOR_CHARS = new Set(['|', '&', ';', '<', '>', '(', ')', '{', '}', '\n', '`']);
 
+/** A documentation placeholder such as `<path-to-skill>`. */
+const PLACEHOLDER = /^<[A-Za-z0-9_][A-Za-z0-9_.\-/ ]*>/;
+
+/** True when a token cannot be resolved because it is a variable or a placeholder. */
+export function isUnresolvedToken(token: ShellToken): boolean {
+  if (token.quoted) return false;
+  return token.value.includes('$') || /<[A-Za-z0-9_][A-Za-z0-9_.\-/ ]*>/.test(token.value);
+}
+
 export function lexShell(text: string): ShellToken[] {
   const tokens: ShellToken[] = [];
   let index = 0;
@@ -97,6 +106,20 @@ export function lexShell(text: string): ShellToken[] {
       tokens.push({ kind: 'op', value: '$(', index, quoted: false });
       index += 2;
       continue;
+    }
+
+    // `<workspace>/iteration-N` in documentation is a placeholder, not two
+    // redirections. Real shells have no such syntax, so reading it as a word
+    // costs nothing and stops usage templates from becoming authority.
+    if (char === '<') {
+      const placeholder = PLACEHOLDER.exec(text.slice(index));
+      if (placeholder) {
+        // Part of the surrounding word, so `<workspace>/out` stays one token.
+        if (wordStart === -1) wordStart = index;
+        word += placeholder[0];
+        index += placeholder[0].length;
+        continue;
+      }
     }
 
     if (OPERATOR_CHARS.has(char)) {

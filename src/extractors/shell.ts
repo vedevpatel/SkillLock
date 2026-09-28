@@ -20,6 +20,7 @@ const EXEC_KEYWORDS = ['args', 'argv', 'command', 'cmd', 'file', 'executable'];
 import {
   commandText,
   isStreamTarget,
+  isUnresolvedToken,
   lexShell,
   splitCommands,
   type ShellCommand,
@@ -270,7 +271,10 @@ function recordPath(
   directory = false,
 ): void {
   if (isStreamTarget(token.value)) return;
-  if (!token.quoted && token.value.includes('$')) {
+  if (isUnresolvedToken(token)) {
+    // In a script an unresolvable path is real authority worth recording. In
+    // documentation it is a usage template, and recording it adds only noise.
+    if (unit.context !== 'source') return;
     pushPath(findings, {
       unit,
       kind,

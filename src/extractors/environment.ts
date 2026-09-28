@@ -82,9 +82,31 @@ export const environmentExtractor: Extractor = {
       }
     }
 
-    return findings;
+    return findings.filter((finding) => {
+      if (finding.evidence.reason !== 'shell-var') return true;
+      return !isShellLocal(unit, finding.value);
+    });
   },
 };
+
+/**
+ * `VIEWER_PID=$!` then `kill $VIEWER_PID` is a script-local variable, not
+ * something read from the environment. A self-referencing assignment such as
+ * `API_KEY=${API_KEY:-default}` still counts, because it does read the
+ * environment, and `export NAME=` counts because it writes to the child
+ * environment.
+ */
+function isShellLocal(unit: ScanUnit, name: string): boolean {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return false;
+  const source = unit.docLines.join('\n');
+  const assignment = new RegExp(
+    String.raw`(?:^|\n)[ \t]*(?:local[ \t]+|declare[ \t]+|typeset[ \t]+)?${name}=([^\n]*)`,
+  );
+  const match = assignment.exec(source);
+  if (!match) return false;
+  if (new RegExp(String.raw`(?:^|\n)[ \t]*export[ \t]+${name}\b`).test(source)) return false;
+  return !new RegExp(String.raw`\$\{?${name}\b`).test(match[1] ?? '');
+}
 
 /**
  * `$FOO` is a variable in shell and YAML. In Markdown prose it is more likely to
